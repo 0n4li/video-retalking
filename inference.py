@@ -292,7 +292,19 @@ def datagen(frames, mels, full_frames, frames_pil, cox):
     fr_pil = [Image.fromarray(frame) for frame in frames]
     lms = kp_extractor.extract_keypoint(fr_pil, 'temp/'+base_name+'x12_landmarks.txt')
     frames_pil = [ (lm, frame) for frame,lm in zip(fr_pil, lms)] # frames is the croped version of modified face
-    crops, orig_images, quads  = crop_faces(image_size, frames_pil, scale=1.0, use_fa=True)
+    
+    try:
+        crops, orig_images, quads = crop_faces(image_size, frames_pil, scale=1.0, use_fa=True)
+    except ValueError as e:
+        print(f"Warning: Error in crop_faces: {e}. Skipping problematic frames.")
+        crops, orig_images, quads = [], [], []
+
+    if len(crops) == 0:
+        print("Warning: No valid crops found. Skipping all frames.")
+        for full_frame in full_frames:
+            yield None, None, None, None, None, [full_frame]
+        return
+
     inverse_transforms = [calc_alignment_coefficients(quad + 0.5, [[0, 0], [0, image_size], [image_size, image_size], [image_size, 0]]) for quad in quads]
     del kp_extractor.detector
 
