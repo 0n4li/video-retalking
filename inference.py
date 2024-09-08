@@ -212,6 +212,11 @@ def main():
 
     kp_extractor = KeypointExtractor()
     for i, (img_batch, mel_batch, frames, coords, img_original, f_frames) in enumerate(tqdm(gen, desc='[Step 6] Lip Synthesis:', total=int(np.ceil(float(len(mel_chunks)) / args.LNet_batch_size)))):
+        if img_batch is None:  # No face detected, use original frame
+            for frame in f_frames:
+                out.write(frame)
+            continue
+
         img_batch = torch.FloatTensor(np.transpose(img_batch, (0, 3, 1, 2))).to(device)
         mel_batch = torch.FloatTensor(np.transpose(mel_batch, (0, 3, 1, 2))).to(device)
         img_original = torch.FloatTensor(np.transpose(img_original, (0, 3, 1, 2))).to(device)/255. # BGR -> RGB
@@ -295,6 +300,9 @@ def datagen(frames, mels, full_frames, frames_pil, cox):
     face_det_results = face_detect(full_frames, args, jaw_correction=True)
 
     for inverse_transform, crop, full_frame, face_det in zip(inverse_transforms, crops, full_frames, face_det_results):
+        if face_det is None:
+            refs.append(None)
+            continue
         imc_pil = paste_image(inverse_transform, crop, Image.fromarray(
             cv2.resize(full_frame[int(oy1):int(oy2), int(ox1):int(ox2)], (256, 256))))
 
@@ -306,6 +314,9 @@ def datagen(frames, mels, full_frames, frames_pil, cox):
 
     for i, m in enumerate(mels):
         idx = 0 if args.static else i % len(frames)
+        if idx >= len(face_det_results) or face_det_results[idx] is None:
+            yield None, None, None, None, None, [full_frames[idx]]
+            continue
         frame_to_save = frames[idx].copy()
         face = refs[idx]
         oface, coords = face_det_results[idx].copy()
